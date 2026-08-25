@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Groot Voice Loop</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Minimal voice agent</p>
+      <h1>I am Groot.</h1>
+      <p>Say a greeting for “Groot”; say anything else for “Grooooot.”</p>
+      <button id="talk-button">Hold to talk</button>
+      <p id="status" aria-live="polite">Ready.</p>
+      <section aria-label="Conversation">
+        <p><strong>You:</strong> <span id="transcript">—</span></p>
+        <p><strong>Groot:</strong> <span id="reply">—</span></p>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
