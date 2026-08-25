@@ -7,6 +7,29 @@ loadEnv();
 
 const port = Number(process.env.PORT ?? 3000);
 const publicDir = join(process.cwd(), "public");
+const MAX_REQUEST_BODY_BYTES = 10 * 1024;
+
+class HttpError extends Error {
+  constructor(statusCode, message) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+async function readTextBody(request, maxBytes) {
+  const chunks = [];
+  let bytesReceived = 0;
+
+  for await (const chunk of request) {
+    bytesReceived += chunk.length;
+    if (bytesReceived > maxBytes) {
+      throw new HttpError(413, `Request body exceeds the ${maxBytes / 1024} KB limit.`);
+    }
+    chunks.push(chunk);
+  }
+
+  return Buffer.concat(chunks).toString("utf8");
+}
 
 function loadEnv() {
   const envFile = join(process.cwd(), ".env");
@@ -55,11 +78,18 @@ createServer(async (request, response) => {
   if (request.method === "POST" && request.url === "/api/reply") {
     const requestId = randomUUID().slice(0, 8);
     const startedAt = performance.now();
-    let raw = "";
-    for await (const chunk of request) raw += chunk;
     try {
-      const { transcript = "" } = JSON.parse(raw);
-      if (!transcript.trim()) throw new Error("Say something first.");
+      const raw = await readTextBody(request, MAX_REQUEST_BODY_BYTES);
+      let payload;
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        throw new HttpError(400, "Request body must be valid JSON.");
+      }
+      const { transcript = "" } = payload;
+      if (typeof transcript !== "string" || !transcript.trim()) {
+        throw new HttpError(400, "Say something first.");
+      }
       const reply = chooseReply(transcript);
       console.info(`[${requestId}] transcript=${JSON.stringify(transcript)} reply=${JSON.stringify(reply)}`);
       const audio = await synthesize(reply);
@@ -74,7 +104,7 @@ createServer(async (request, response) => {
     } catch (error) {
       const elapsedMs = Math.round(performance.now() - startedAt);
       console.error(`[${requestId}] failed duration_ms=${elapsedMs}`, error);
-      response.writeHead(502, { "Content-Type": "application/json", "X-Request-Id": requestId });
+      response.writeHead(error.statusCode ?? 502, { "Content-Type": "application/json", "X-Request-Id": requestId });
       response.end(JSON.stringify({ requestId, error: error.message }));
     }
     return;
